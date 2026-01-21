@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlowSync - Smart Task Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
+        
+        * { font-family: 'Poppins', sans-serif; }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .task-item {
+            animation: slideIn 0.4s ease-out;
+            transition: all 0.3s;
+        }
+        
+        .task-item:hover {
+            transform: translateX(8px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        
+        .stat-card {
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        .stat-card:nth-child(2) { animation-delay: 0.5s; }
+        .stat-card:nth-child(3) { animation-delay: 1s; }
+        .stat-card:nth-child(4) { animation-delay: 1.5s; }
+        
+        .glass {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .priority-critical { border-left: 5px solid #dc2626; }
+        .priority-high { border-left: 5px solid #ef4444; }
+        .priority-medium { border-left: 5px solid #f59e0b; }
+        .priority-low { border-left: 5px solid #10b981; }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 16px 24px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @media (max-width: 640px) {
+            .toast { left: 20px; right: 20px; }
+        }
+        
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            animation: confettiFall 3s linear forwards;
+        }
+        
+        @keyframes confettiFall {
+            to {
+                transform: translateY(100vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="toastContainer"></div>
+    <div id="confettiContainer"></div>
+    
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-6xl font-black text-white mb-2 drop-shadow-lg">Flow<span class="text-yellow-300">Sync</span></h1>
+            <p class="text-white text-lg font-semibold">🚀 AI-Powered Productivity Hub</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            
+            <!-- Sidebar -->
+            <div class="lg:col-span-1 space-y-6">
+                
+                <!-- Progress -->
+                <div class="glass rounded-3xl p-6 text-white">
+                    <h3 class="font-bold text-xl mb-4">📊 Progress</h3>
+                    <div class="flex justify-center mb-4">
+                        <div class="relative w-32 h-32">
+                            <svg class="transform -rotate-90 w-32 h-32">
+                                <circle cx="64" cy="64" r="56" stroke="rgba(255,255,255,0.2)" stroke-width="10" fill="none"/>
+                                <circle id="progressCircle" cx="64" cy="64" r="56" stroke="#fbbf24" stroke-width="10" fill="none" 
+                                        stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="round" style="transition: stroke-dashoffset 0.5s;"/>
+                            </svg>
+                            <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                <span id="progressText" class="text-3xl font-black">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pomodoro Timer -->
+                <div class="glass rounded-3xl p-6 text-white">
+                    <h3 class="font-bold text-xl mb-4">⏱️ Pomodoro</h3>
+                    <div class="text-center">
+                        <div id="timerDisplay" class="text-5xl font-black mb-4">25:00</div>
+                        <div class="flex gap-2 justify-center mb-3">
+                            <button id="startTimer" class="px-6 py-2 bg-green-500 rounded-xl font-bold hover:bg-green-600 transition">▶️</button>
+                            <button id="pauseTimer" class="px-6 py-2 bg-amber-500 rounded-xl font-bold hover:bg-amber-600 transition hidden">⏸️</button>
+                            <button id="resetTimer" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-xl font-bold hover:bg-gray-300 transition">🔄</button>
+                        </div>
+                        <div class="flex gap-2 justify-center text-sm">
+                            <button class="timer-preset px-3 py-1 bg-white/20 rounded-lg hover:bg-white/30" data-min="25">25m</button>
+                            <button class="timer-preset px-3 py-1 bg-white/20 rounded-lg hover:bg-white/30" data-min="15">15m</button>
+                            <button class="timer-preset px-3 py-1 bg-white/20 rounded-lg hover:bg-white/30" data-min="5">5m</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="stat-card glass rounded-2xl p-4 text-center text-white">
+                        <div class="text-3xl font-black" id="totalTasks">0</div>
+                        <div class="text-xs font-bold">Total</div>
+                    </div>
+                    <div class="stat-card glass rounded-2xl p-4 text-center text-white">
+                        <div class="text-3xl font-black text-green-300" id="completedTasks">0</div>
+                        <div class="text-xs font-bold">Done</div>
+                    </div>
+                    <div class="stat-card glass rounded-2xl p-4 text-center text-white">
+                        <div class="text-3xl font-black text-blue-300" id="activeTasks">0</div>
+                        <div class="text-xs font-bold">Active</div>
+                    </div>
+                    <div class="stat-card glass rounded-2xl p-4 text-center text-white">
+                        <div class="text-3xl font-black text-red-300" id="urgentTasks">0</div>
+                        <div class="text-xs font-bold">Urgent</div>
+                    </div>
+                </div>
+
+                <!-- Streak -->
+                <div class="glass rounded-3xl p-6 text-white text-center">
+                    <h3 class="font-bold text-xl mb-4">🔥 Streak</h3>
+                    <div class="text-5xl font-black text-yellow-300 mb-2" id="streakCount">0</div>
+                    <p class="text-sm font-semibold">Days in a row!</p>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="lg:col-span-3 space-y-6">
+                
+                <!-- Add Task -->
+                <div class="glass rounded-3xl p-6">
+                    <h3 class="font-bold text-2xl text-white mb-4">✨ Create New Task</h3>
+                    
+                    <input 
+                        type="text" 
+                        id="taskInput" 
+                        placeholder="What needs to be done? 🎯"
+                        class="w-full px-5 py-4 bg-white/20 border-2 border-white/30 rounded-2xl text-white placeholder-white/70 font-semibold mb-4 focus:outline-none focus:ring-4 focus:ring-yellow-300"
+                    />
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                        <select id="prioritySelect" class="px-4 py-3 bg-white/20 border-2 border-white/30 rounded-xl text-white font-semibold focus:outline-none focus:ring-4 focus:ring-yellow-300">
+                            <option value="low">🟢 Low Priority</option>
+                            <option value="medium" selected>🟡 Medium Priority</option>
+                            <option value="high">🔴 High Priority</option>
+                            <option value="critical">⚡ Critical</option>
+                        </select>
+                        
+                        <select id="categorySelect" class="px-4 py-3 bg-white/20 border-2 border-white/30 rounded-xl text-white font-semibold focus:outline-none focus:ring-4 focus:ring-yellow-300">
+                            <option value="study">📚 Study</option>
+                            <option value="assignment">📝 Assignment</option>
+                            <option value="exam">🎯 Exam Prep</option>
+                            <option value="project">💼 Project</option>
+                            <option value="personal">👤 Personal</option>
+                            <option value="fitness">💪 Fitness</option>
+                        </select>
+                        
+                        <input 
+                            type="date" 
+                            id="dueDateInput" 
+                            class="px-4 py-3 bg-white/20 border-2 border-white/30 rounded-xl text-white font-semibold focus:outline-none focus:ring-4 focus:ring-yellow-300"
+                        />
+                    </div>
+                    
+                    <button 
+                        id="addTaskBtn"
+                        class="w-full px-6 py-4 bg-gradient-to-r from-yellow-400 to-orange-500 text-gray-900 rounded-2xl font-black text-lg hover:shadow-2xl transition-all"
+                    >
+                        ➕ Add Task to Flow
+                    </button>
+                </div>
+
+                <!-- Filters -->
+                <div class="glass rounded-3xl p-6">
+                    <div class="flex flex-wrap gap-3 mb-4">
+                        <button class="filter-btn active px-4 py-2 bg-yellow-400 text-gray-900 rounded-xl font-bold text-sm" data-filter="all">🌟 All</button>
+                        <button class="filter-btn px-4 py-2 bg-white/20 text-white rounded-xl font-bold text-sm hover:bg-white/30" data-filter="active">⚡ Active</button>
+                        <button class="filter-btn px-4 py-2 bg-white/20 text-white rounded-xl font-bold text-sm hover:bg-white/30" data-filter="completed">✅ Done</button>
+                        <button class="filter-btn px-4 py-2 bg-white/20 text-white rounded-xl font-bold text-sm hover:bg-white/30" data-filter="critical">🔥 Critical</button>
+                        <button class="filter-btn px-4 py-2 bg-white/20 text-white rounded-xl font-bold text-sm hover:bg-white/30" data-filter="today">📅 Today</button>
+                    </div>
+                    
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <input 
+                            type="text" 
+                            id="searchInput" 
+                            placeholder="🔍 Search tasks..."
+                            class="flex-1 px-4 py-3 bg-white/20 border-2 border-white/30 rounded-xl text-white placeholder-white/70 font-semibold focus:outline-none focus:ring-4 focus:ring-yellow-300"
+                        />
+                        <select id="sortSelect" class="px-4 py-3 bg-white/20 border-2 border-white/30 rounded-xl text-white font-semibold focus:outline-none focus:ring-4 focus:ring-yellow-300">
+                            <option value="newest">🆕 Newest First</option>
+                            <option value="oldest">⏰ Oldest First</option>
+                            <option value="priority">🚨 By Priority</option>
+                            <option value="duedate">📆 By Due Date</option>
+                        </select>
+                        <button id="clearCompleted" class="px-6 py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition">🗑️ Clear Done</button>
+                    </div>
+                </div>
+
+                <!-- Tasks List -->
+                <div id="tasksList" class="space-y-4">
+                    <!-- Tasks appear here -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="text-center py-16 hidden">
+                    <div class="text-7xl mb-4">🎉</div>
+                    <h3 class="text-4xl font-black text-white mb-3">All Clear!</h3>
+                    <p class="text-white text-lg">Add your first task to get started!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let tasks = [];
+        let currentFilter = 'all';
+        let searchQuery = '';
+        let currentSort = 'newest';
+        let timerInterval = null;
+        let timerSeconds = 25 * 60;
+        let isTimerRunning = false;
+
+        const taskInput = document.getElementById('taskInput');
+        const prioritySelect = document.getElementById('prioritySelect');
+        const categorySelect = document.getElementById('categorySelect');
+        const dueDateInput = document.getElementById('dueDateInput');
+        const addTaskBtn = document.getElementById('addTaskBtn');
+        const tasksList = document.getElementById('tasksList');
+        const emptyState = document.getElementById('emptyState');
+        const searchInput = document.getElementById('searchInput');
+        const sortSelect = document.getElementById('sortSelect');
+        const clearCompleted = document.getElementById('clearCompleted');
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const startTimer = document.getElementById('startTimer');
+        const pauseTimer = document.getElementById('pauseTimer');
+        const resetTimer = document.getElementById('resetTimer');
+        const timerPresets = document.querySelectorAll('.timer-preset');
+
+        function showToast(message, emoji = '✅') {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = `<div class="flex items-center gap-3"><span class="text-3xl">${emoji}</span><span class="font-bold">${message}</span></div>`;
+            document.getElementById('toastContainer').appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function createConfetti() {
+            const colors = ['#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6'];
+            for (let i = 0; i < 30; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti';
+                confetti.style.left = Math.random() * 100 + '%';
+                confetti.style.background = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.animationDelay = Math.random() * 0.5 + 's';
+                document.getElementById('confettiContainer').appendChild(confetti);
+                setTimeout(() => confetti.remove(), 3000);
+            }
+        }
+
+        function addTask() {
+            const text = taskInput.value.trim();
+            if (!text) {
+                showToast('Please enter a task!', '⚠️');
+                return;
+            }
+
+            const task = {
+                id: Date.now(),
+                text: text,
+                completed: false,
+                priority: prioritySelect.value,
+                category: categorySelect.value,
+                dueDate: dueDateInput.value || null,
+                createdAt: new Date().toISOString()
+            };
+
+            tasks.unshift(task);
+            taskInput.value = '';
+            dueDateInput.value = '';
+            renderTasks();
+            updateStats();
+            showToast('Task added successfully!', '🚀');
+        }
+
+        function toggleTask(id) {
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                task.completed = !task.completed;
+                if (task.completed) {
+                    showToast('Task completed!', '🎉');
+                    createConfetti();
+                }
+                renderTasks();
+                updateStats();
+            }
+        }
+
+        function deleteTask(id) {
+            tasks = tasks.filter(t => t.id !== id);
+            renderTasks();
+            updateStats();
+            showToast('Task deleted', '🗑️');
+        }
+
+        function getFilteredTasks() {
+            let filtered = tasks;
+
+            if (currentFilter === 'active') {
+                filtered = filtered.filter(t => !t.completed);
+            } else if (currentFilter === 'completed') {
+                filtered = filtered.filter(t => t.completed);
+            } else if (currentFilter === 'critical') {
+                filtered = filtered.filter(t => t.priority === 'critical');
+            } else if (currentFilter === 'today') {
+                const today = new Date().toDateString();
+                filtered = filtered.filter(t => t.dueDate && new Date(t.dueDate).toDateString() === today);
+            }
+
+            if (searchQuery) {
+                filtered = filtered.filter(t => t.text.toLowerCase().includes(searchQuery.toLowerCase()));
+            }
+
+            const sorted = [...filtered];
+            if (currentSort === 'newest') {
+                sorted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            } else if (currentSort === 'oldest') {
+                sorted.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+            } else if (currentSort === 'priority') {
+                const order = { critical: 4, high: 3, medium: 2, low: 1 };
+                sorted.sort((a, b) => order[b.priority] - order[a.priority]);
+            } else if (currentSort === 'duedate') {
+                sorted.sort((a, b) => {
+                    if (!a.dueDate) return 1;
+                    if (!b.dueDate) return -1;
+                    return new Date(a.dueDate) - new Date(b.dueDate);
+                });
+            }
+
+            return sorted;
+        }
+
+        function renderTasks() {
+            const filtered = getFilteredTasks();
+            
+            if (filtered.length === 0) {
+                tasksList.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            
+            tasksList.innerHTML = filtered.map(task => {
+                const categoryEmoji = {
+                    study: '📚', assignment: '📝', exam: '🎯',
+                    project: '💼', personal: '👤', fitness: '💪'
+                }[task.category];
+
+                const priorityColor = {
+                    critical: 'bg-red-100 text-red-700',
+                    high: 'bg-orange-100 text-orange-700',
+                    medium: 'bg-amber-100 text-amber-700',
+                    low: 'bg-green-100 text-green-700'
+                }[task.priority];
+
+                return `
+                    <div class="task-item glass rounded-2xl p-5 priority-${task.priority} ${task.completed ? 'opacity-60' : ''}">
+                        <div class="flex items-start gap-4">
+                            <button 
+                                onclick="toggleTask(${task.id})"
+                                class="w-7 h-7 rounded-full border-2 ${task.completed ? 'bg-green-500 border-green-500' : 'border-white/50 hover:border-white'} flex items-center justify-center flex-shrink-0 transition-all"
+                            >
+                                ${task.completed ? '<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>' : ''}
+                            </button>
+                            
+                            <div class="flex-1 min-w-0">
+                                <p class="text-white ${task.completed ? 'line-through' : ''} text-lg font-semibold break-words mb-2">${task.text}</p>
+                                <div class="flex flex-wrap gap-2">
+                                    <span class="text-xs px-3 py-1 rounded-full ${priorityColor} font-bold">${task.priority.toUpperCase()}</span>
+                                    <span class="text-xs px-3 py-1 rounded-full bg-purple-100 text-purple-700 font-bold">${categoryEmoji} ${task.category}</span>
+                                    ${task.dueDate ? `<span class="text-xs px-3 py-1 rounded-full bg-blue-100 text-blue-700 font-bold">📅 ${new Date(task.dueDate).toLocaleDateString()}</span>` : ''}
+                                </div>
+                            </div>
+                            
+                            <button 
+                                onclick="deleteTask(${task.id})"
+                                class="text-white/70 hover:text-red-400 transition p-2"
+                            >
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateStats() {
+            const total = tasks.length;
+            const completed = tasks.filter(t => t.completed).length;
+            const active = total - completed;
+            const urgent = tasks.filter(t => (t.priority === 'critical' || t.priority === 'high') && !t.completed).length;
+
+            document.getElementById('totalTasks').textContent = total;
+            document.getElementById('completedTasks').textContent = completed;
+            document.getElementById('activeTasks').textContent = active;
+            document.getElementById('urgentTasks').textContent = urgent;
+
+            const progress = total > 0 ? (completed / total) * 100 : 0;
+            const circumference = 351.86;
+            const offset = circumference - (progress / 100) * circumference;
+            document.getElementById('progressCircle').style.strokeDashoffset = offset;
+            document.getElementById('progressText').textContent = Math.round(progress) + '%';
+
+            if (completed > 0) {
+                document.getElementById('streakCount').textContent = completed;
+            }
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function updateTimer() {
+            timerDisplay.textContent = formatTime(timerSeconds);
+        }
+
+        function startTimerFunc() {
+            if (!isTimerRunning) {
+                isTimerRunning = true;
+                startTimer.classList.add('hidden');
+                pauseTimer.classList.remove('hidden');
+                
+                timerInterval = setInterval(() => {
+                    timerSeconds--;
+                    updateTimer();
+                    
+                    if (timerSeconds <= 0) {
+                        pauseTimerFunc();
+                        showToast('Pomodoro Complete!', '🎉');
+                        createConfetti();
+                        timerSeconds = 25 * 60;
+                        updateTimer();
+                    }
+                }, 1000);
+            }
+        }
+
+        function pauseTimerFunc() {
+            isTimerRunning = false;
+            clearInterval(timerInterval);
+            startTimer.classList.remove('hidden');
+            pauseTimer.classList.add('hidden');
+        }
+
+        function resetTimerFunc() {
+            pauseTimerFunc();
+            timerSeconds = 25 * 60;
+            updateTimer();
+        }
+
+        addTaskBtn.addEventListener('click', addTask);
+        taskInput.addEventListener('keypress', e => { if (e.key === 'Enter') addTask(); });
+
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                filterBtns.forEach(b => {
+                    b.classList.remove('active', 'bg-yellow-400', 'text-gray-900');
+                    b.classList.add('bg-white/20', 'text-white');
+                });
+                btn.classList.add('active', 'bg-yellow-400', 'text-gray-900');
+                btn.classList.remove('bg-white/20', 'text-white');
+                currentFilter = btn.dataset.filter;
+                renderTasks();
+            });
+        });
+
+        searchInput.addEventListener('input', e => {
+            searchQuery = e.target.value;
+            renderTasks();
+        });
+
+        sortSelect.addEventListener('change', e => {
+            currentSort = e.target.value;
+            renderTasks();
+        });
+
+        clearCompleted.addEventListener('click', () => {
+            const count = tasks.filter(t => t.completed).length;
+            if (count > 0 && confirm(`Delete ${count} completed tasks?`)) {
+                tasks = tasks.filter(t => !t.completed);
+                renderTasks();
+                updateStats();
+                showToast(`${count} tasks cleared`, '🗑️');
+            }
+        });
+
+        startTimer.addEventListener('click', startTimerFunc);
+        pauseTimer.addEventListener('click', pauseTimerFunc);
+        resetTimer.addEventListener('click', resetTimerFunc);
+
+        timerPresets.forEach(btn => {
+            btn.addEventListener('click', () => {
+                pauseTimerFunc();
+                timerSeconds = parseInt(btn.dataset.min) * 60;
+                updateTimer();
+            });
+        });
+
+        const today = new Date().toISOString().split('T')[0];
+        dueDateInput.setAttribute('min', today);
+
+        renderTasks();
+        updateStats();
+        updateTimer();
+        
+        setTimeout(() => showToast('Welcome to FlowSync!', '👋'), 500);
+    </script>
+</body>
+</html>
